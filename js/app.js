@@ -6,22 +6,22 @@ class TodoList extends WebComponent {
 				<h1>todos</h1>
 				<input @keydown="addTodo" class="new-todo" placeholder="What needs to be done?" autofocus>
 			</header>
-			<section class="main" style="display: none;">
+			<section :show="_$tasks.children.length" class="main">
 				<input id="toggle-all" class="toggle-all" type="checkbox">
 				<label for="toggle-all" @click="selectAll">Mark all as complete</label>
 				<ul class="todo-list"></ul>
 			</section>
-			<footer class="footer" style="display: none;">
-				<span class="todo-count"><strong>0</strong> item left</span>
+			<footer :show="_$tasks.children.length" class="footer">
+				<span class="todo-count"><strong :bind="getCount()"></strong> item left</span>
 				<ul class="filters">
 					<li>
-						<a class="selected" href="#/">All</a>
+						<a @click="applyFilter" filter="all" class="selected">All</a>
 					</li>
 					<li>
-						<a href="#/active">Active</a>
+						<a @click="applyFilter" filter="active">Active</a>
 					</li>
 					<li>
-						<a href="#/completed">Completed</a>
+						<a @click="applyFilter" filter="completed">Completed</a>
 					</li>
 				</ul>
 				<button @click="removeAll" class="clear-completed">Clear completed</button>
@@ -33,31 +33,21 @@ class TodoList extends WebComponent {
 	constructor() {
 		super();
 
-		this.$main = this.querySelector('.main');
-		this.$tasks = this.querySelector('.todo-list');
-		this.$footer = this.querySelector('.footer');
-		this.$filters = this.querySelector('.filters');
-		this.$count = this.querySelector('.todo-count > strong');
-
-		window.addEventListener('hashchange', (e) => {
-			this.applyFilter(location.hash.replace('#', ''));
-			[...this.$filters.querySelectorAll('a[href^="#"]')].forEach(($el) => $el.classList.remove('selected'));
-			this.$filters.querySelector('a[href="' + location.hash + '"]').classList.add('selected');
-		});
+		this._$tasks = this.querySelector('.todo-list');
+		this._$filters = this.querySelector('.filters');
 	}
 
 	selectAll() {
 		const selectAll = !this.querySelector('#toggle-all').checked;
-		[...this.$tasks.children].forEach(($li) => {
+		[...this._$tasks.children].forEach(($li) => {
 			$li.$props.done = selectAll;
 			$li.classList[selectAll ? 'add' : 'remove']('completed');
 			$li.querySelector('.toggle').checked = selectAll;
 		});
-		this.updateListCount();
 	}
 
 	removeAll() {
-		[...this.$tasks.children].forEach(($li) => {
+		[...this._$tasks.children].forEach(($li) => {
 			if ($li.$props.done) $li.remove();
 		});
 	}
@@ -65,12 +55,6 @@ class TodoList extends WebComponent {
 	removeTodo(event) {
 		const $li = event.target.closest('li');
 		$li.remove();
-		if (this.$tasks.children.length) {
-			this.updateListCount();
-		} else {
-			this.$main.style.display = 'none';
-			this.$footer.style.display = 'none';
-		}
 	}
 
 	toggleTodo(event) {
@@ -81,14 +65,12 @@ class TodoList extends WebComponent {
 			$li.classList.remove('completed');
 		}
 		$li.$props.done = event.target.checked;
-		this.updateListCount();
 	}
 
 	addTodo(event) {
-		if (event.key !== "Enter") return;
 		const value = event.target.value;
+		if (event.key !== "Enter" || !value) return false;
 		event.target.value = '';
-		if (!value) return;
 		event.preventDefault();
 
 		const $task = this.html(`
@@ -104,7 +86,7 @@ class TodoList extends WebComponent {
 
 		$task.querySelector('label').innerHTML = value;
 
-		this.$tasks.appendChild($task);
+		this._$tasks.appendChild($task);
 
 		const $editInput = $task.querySelector('input.edit');
 		$task.$props = {};
@@ -123,36 +105,34 @@ class TodoList extends WebComponent {
 				$editInput.removeEventListener('focusout', this, true);
 			});
 		});
-
-		this.updateListCount();
-
-		this.$main.style.display = 'block';
-		this.$footer.style.display = 'block';
 	}
 
-	updateListCount() {
-		this.$count.innerHTML = [...this.$tasks.children].reduce((acc, $li) => {
+	getCount() {
+		return [...this._$tasks.children].reduce((acc, $li) => {
 			if (!$li.$props.done) acc++;
 			return acc;
 		}, 0);
 	}
 
-	applyFilter(route) {
-		const routes = {
-			"/": ($li) => {
+	applyFilter(event) {
+		const filters = {
+			"all": ($li) => {
 				$li.style.display = 'block';
 			},
-			"/completed": ($li) => {
+			"completed": ($li) => {
 				$li.style.display = $li.$props.done ? 'block' : 'none';
 			},
-			"/active": ($li) => {
+			"active": ($li) => {
 				$li.style.display = $li.$props.done ? 'none' : 'block';
 			}
 		};
 
-		[...this.$tasks.children].forEach(($li) => {
-			routes[route]($li);
+		[...this._$tasks.children].forEach(($li) => {
+			filters[event.target.getAttribute('filter')]($li);
 		});
+
+		[...event.target.closest('ul').querySelectorAll('a')].forEach(($el) => $el.classList.remove('selected'));
+		event.target.classList.add('selected');
 	}
 }
 
